@@ -1,0 +1,6 @@
+apps:
+{% for item in apps_info.results[0].json.resources %}
+  - name: {{ item.name }}
+    guid: {{ item.guid }}
+    state: {{ item.state }}
+{% endfor %}
