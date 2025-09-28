@@ -1,0 +1,15 @@
+--- 
+- name: authentication
+  include_tasks: auth.yml
+  
+- name: stop cf apps
+  include_tasks: cf_apps_stop.yml
+  when: 
+    - SWITCH is defined 
+    - '"stop" in SWITCH'
+
+- name: start cf apps
+  include_tasks: cf_apps_start.yml
+  when: 
+    - SWITCH is defined 
+    - '"start" in SWITCH'

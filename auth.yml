@@ -1,0 +1,25 @@
+--- 
+- name: get token
+  uri: 
+    url: https://uaa.run.pivotal.io/oauth/token
+    body_format: "form-urlencoded"
+    headers: 
+      Content-Type: "application/x-www-form-urlencoded"
+      Accept: "application/json" 
+      Authorization: Basic Y2Y6
+    body:
+      username: "{{ CF_USER }}"
+      password: "{{ CF_PASS }}" 
+      grant_type: "password"
+      token_format: "jwt"
+      response_type: "token"
+    status_code: 200, 201, 204
+    method: POST
+  register: TOKEN
+
+- name: set as variable access token
+  set_fact:
+    access_token: "{{ item.json.access_token }}"
+  with_items:
+    - "{{ TOKEN }}"
+  no_log: True

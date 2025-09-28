@@ -1,0 +1,70 @@
+--- 
+- block:
+    - name: get space info
+      uri:
+        url: "{{ CF_API }}/v3/spaces?names={{ PROJECT }}"
+        method: GET
+      register: space_guid_info
+
+    - name: set as variable the space info
+      set_fact: 
+        space_guid: "{{ space_guid_info }}"
+
+    - name: query json data to get the space guid
+      set_fact: 
+        guid: "{{ space_guid | json_query(queryspaceguid) }}"
+      vars:
+        queryspaceguid: '*.resources[*].guid'
+
+    - name: get apps info for the space 
+      uri:
+        url: "{{ CF_API }}/v3/apps?space_guids={{ item[0] }}&page=1&per_page=400"
+        method: GET
+      with_items: 
+        - "{{ guid }}"
+      register: apps_info
+
+    - name: create list of dict with GUIDs and Names from SPACE
+      set_fact:
+        APPS_FACTS_LIST: "{{ APPS_FACTS_LIST | default([]) + [ 
+                          { 'name': item.name, 'guid': item.guid, 'state': item.state }
+                          ] }}"
+      with_items:
+        - "{{ apps_info.results[0].json.resources }}"
+      no_log: true
+      when: item.state == 'STARTED'
+
+    - name: save App status to file
+      template:
+        src: status_template.j2
+        dest: "status_{{ PROJECT }}.yml" 
+
+    - name: save the apps state in S3 bucket before stopping
+      aws_s3:
+        bucket: cf-power-saving
+        object: "/status_{{ PROJECT }}.yml" 
+        src: "./status_{{ PROJECT }}.yml" 
+        mode: put
+
+    - name: load previous file
+      include_vars:
+        file: "status_{{ PROJECT }}.yml"
+        name: LOADED_FILE
+
+    - name: " {{ SWITCH }} apps for the space {{ PROJECT }}"
+      uri:
+        url: "{{ CF_API }}/v3/apps/{{ item.guid }}/actions/{{ SWITCH }}"
+        method: POST
+      with_items: 
+        - "{{ LOADED_FILE.apps }}"
+      when:
+        - item.state == 'STARTED'
+      register: apps_status
+
+  module_defaults:
+    uri:
+      body_format: json
+      headers: 
+        Content-Type: "application/json"
+        Authorization: " bearer {{ access_token }}"
+      status_code: 200, 201, 204

@@ -1,0 +1,62 @@
+--- 
+- block:
+    - name: download the apps state file from S3
+      aws_s3:
+        bucket: cf-power-saving
+        object: "/status_{{ PROJECT }}.yml"
+        dest: "./status_{{ PROJECT }}.yml"
+        mode: get
+
+    - name: load the state file to use as variable
+      include_vars:
+        file: "./status_{{ PROJECT }}.yml"
+        name: LOADED_FILE
+
+    - name: "{{ SWITCH }} digital-registry for the space {{ PROJECT}} "
+      uri:
+        url: "{{ CF_API }}/v3/apps/{{ item.guid }}/actions/{{ SWITCH }}"
+        method: POST
+      with_items: 
+        - "{{ LOADED_FILE.apps }}"
+      when:
+        - item.state == 'STARTED'
+        - item.name == DIGITAL_REGISTRY_NAME
+      register: apps_status
+
+
+    - name: "{{ SWITCH }} digital-config for the space {{ PROJECT}} "
+      uri:
+        url: "{{ CF_API }}/v3/apps/{{ item.guid }}/actions/{{ SWITCH }}"
+        method: POST
+      with_items: 
+        - "{{ LOADED_FILE.apps }}"
+      when:
+        - item.state == 'STARTED'
+        - item.name == DIGITAL_CONFIG_NAME
+      register: apps_status
+
+
+    - name: pause for 1 minute just to give time to the apps to start
+      pause:
+        minutes: 1
+
+
+    - name: "{{ SWITCH }} apps for the space {{ PROJECT }}"
+      uri:
+        url: "{{ CF_API }}/v3/apps/{{ item.guid }}/actions/{{ SWITCH }}"
+        method: POST
+      with_items: 
+        - "{{ LOADED_FILE.apps }}"
+      when:
+        - item.state == 'STARTED'
+      register: apps_status
+
+  module_defaults:
+    uri:
+      body_format: json
+      headers: 
+        Content-Type: "application/json"
+        Authorization: " bearer {{ access_token }}"
+      status_code: 200, 201, 204
+
+
